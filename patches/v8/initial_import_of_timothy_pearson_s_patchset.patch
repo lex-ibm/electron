@@ -1,0 +1,57 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alex Garcia <lex@ibm.com>
+Date: Wed, 28 Jan 2026 21:49:37 +0000
+Subject: Initial import of Timothy Pearson's patchset
+
+
+diff --git a/BUILD.gn b/BUILD.gn
+index 6000fe955ede73222b2fe583dd8c38f20a7edb06..0c3438205e5cf5539b0b458ba7810fb4c60a99dc 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -1622,7 +1622,14 @@ config("toolchain") {
+   if (v8_current_cpu == "ppc64") {
+     defines += [ "V8_TARGET_ARCH_PPC64" ]
+     cflags += [ "-ffp-contract=off" ]
+-    if (current_os == "aix" && !is_clang) {
++    if (current_os == "linux") {
++      cflags += [
++        # Enable usage of AltiVec, VSX, and other POWER8 and higher features
++        "-mcpu=power9",
++        "-maltivec",
++        "-mvsx",
++      ]
++    } else if (current_os == "aix" && !is_clang) {
+       cflags += [
+         # Work around AIX ceil, trunc and round oddities.
+         "-mcpu=power5+",
+diff --git a/gni/v8.gni b/gni/v8.gni
+index e29a7c5de3c4cc726668009a11c4a44cb5f3c5ae..78ae95633f131817575009e7b91df183f0378153 100644
+--- a/gni/v8.gni
++++ b/gni/v8.gni
+@@ -316,7 +316,7 @@ assert(
+ if (v8_enable_pointer_compression == "") {
+   v8_enable_pointer_compression =
+       v8_current_cpu == "arm64" || v8_current_cpu == "x64" ||
+-      v8_current_cpu == "loong64"
++      v8_current_cpu == "loong64" || v8_current_cpu == "ppc64"
+ }
+ 
+ # The Wasm interpreter is currently supported only on arm64 and x64, on
+diff --git a/src/base/immediate-crash.h b/src/base/immediate-crash.h
+index 9c25a7dce988afad9e312df7c3e9fe30fbabd450..6bf8b441e174aae152ba619967e665d98ca255f8 100644
+--- a/src/base/immediate-crash.h
++++ b/src/base/immediate-crash.h
+@@ -98,6 +98,13 @@
+ #define TRAP_SEQUENCE1_() asm volatile(".2byte 0x0001");
+ #define TRAP_SEQUENCE2_() asm volatile("")
+ 
++#elif V8_HOST_ARCH_PPC64
++
++#define TRAP_SEQUENCE1_() asm volatile("trap")
++// Intentionally empty: __builtin_unreachable() is always part of the sequence
++// (see IMMEDIATE_CRASH below)
++#define TRAP_SEQUENCE2_() asm volatile("")
++
+ #else
+ 
+ // Crash report accuracy will not be guaranteed on other architectures, but at
